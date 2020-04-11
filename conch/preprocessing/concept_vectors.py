@@ -4,11 +4,15 @@ import json
 
 from tqdm import tqdm
 from reach import Reach
+from itertools import chain
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 def create_concepts(concepts,
                     embeddings,
-                    include_np=True):
+                    include_np=True,
+                    apply_idf=False,
+                    max_df=1.0):
     """Create concepts by summing over descriptions in embedding spaces."""
     # Gold standard labels for concepts:
     sty = json.load(open("data/concept_label.json"))
@@ -18,7 +22,13 @@ def create_concepts(concepts,
 
     concept_labels = []
 
-    for name, descriptions in tqdm(list(concepts.items())):
+    descs = [" ".join(v).lower() for v in concepts.values()]
+    if apply_idf:
+        t = TfidfVectorizer(max_df=max_df)
+        t.fit(descs)
+        embeddings = embeddings.intersect(set(t.vocabulary_))
+
+    for name, descriptions in tqdm(concepts.items()):
 
         try:
             label = sty[name]
@@ -28,27 +38,20 @@ def create_concepts(concepts,
         if not include_np and label == "np":
             continue
 
-        concept = []
+        descs = " ".join(descriptions).lower().split()
+        try:
+            embs = embeddings.vectorize(descs, remove_oov=True)
+        except ValueError:
+            continue
+        v = np.mean(embs, 0)
 
-        for idx, desc in enumerate(descriptions):
-
-            try:
-                desc = desc.lower().split()
-                # desc = [x for x in desc if x not in STOP_WORDS]
-                vec = embeddings.vectorize(desc, remove_oov=True)
-                if not np.any(vec):
-                    continue
-                concept.append(np.mean(vec, axis=0))
-            except ValueError:
-                pass
-
-        if not concept:
+        if np.all(v == 0):
             continue
 
+        vectors.append(v)
         concept_labels.append(label)
         name = "{0}_{1}".format(name, "_".join(descriptions[0].split()))
         concept_names.append(name)
-        vectors.append(np.array(concept).mean(axis=0))
 
     r = Reach(np.array(vectors), concept_names)
     name2label = dict(zip(concept_names, concept_labels))
@@ -59,7 +62,8 @@ def create_concepts(concepts,
 if __name__ == "__main__":
 
     path_to_embeddings = ""
-    r_1 = Reach.load(path_to_embeddings, unk_word="UNK")
+    r_1 = Reach.load("../../corpora/mimiciii-min5-neg3-w5-100.vec",
+                     unk_word="UNK")
 
     concepts = json.load(open("data/all_concepts.json"))
     r, name2label = create_concepts(concepts, r_1, include_np=True)
