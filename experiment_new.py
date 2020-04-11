@@ -16,7 +16,7 @@ from sklearn.cluster import KMeans
 
 
 def rewrite_labels(seq):
-    out = ["O" if seq[0] == "np" else f"B-{seq[0].upper()}"]
+    out = ["O" if seq[0] == "np" else f"B-{seq[0]}"]
     prev = out[-1]
     for x in seq[1:]:
         if x == "np":
@@ -64,20 +64,16 @@ if __name__ == "__main__":
 
     # Set this flag to true to replicate the perfect chunking setting
     # in experiment 3.
-    perfect = False
+    perfect = True
 
     gold = json.load(open("data/test_gold.json"))
     gold = list(zip(*sorted(gold.items())))[1]
 
     if perfect:
         data = json.load(open("data/test_gold.json"))
-    else:
-        data = json.load(open("data/test_uima.json"))
     data = list(zip(*sorted(data.items())))[1]
 
     txt, gold_bio = zip(*gold)
-    _, data_bio = zip(*data)
-
     r = Reach.load("../../corpora/mimiciii-min5-neg3-w5-100.vec",
                    unk_word="<UNK>")
 
@@ -100,23 +96,30 @@ if __name__ == "__main__":
     scores = []
     vecs = r.transform([" ".join(x).lower().split() for x in txt])
 
-    preds = []
-    for x in tqdm(vecs):
-        atts = []
-        ks, vs = zip(*memory.items())
+    for gamma in np.arange(.001, .01, .001):
+        preds = []
 
-        for v in vs:
-            atts.append(similarity(x, v, "rbf", pooling=np.max))
-        atts = np.stack(atts, 1)
-        score = softmax(atts, 1)
-        pred = np.asarray([ks[x] for x in np.argmax(score, 1)])
+        for x in tqdm(vecs):
 
-        dist = distance(score)
-        mask = dist < dist.mean()
-        pred[mask] = "np"
-        preds.append(rewrite_labels(pred))
+            atts = []
+            ks, vs = zip(*memory.items())
 
-    s = eval_sequence(preds, gold_bio, exact=False)
-    a = precision_recall_dict(*s, average="micro")
-    b = precision_recall_dict(*s, average="macro")
-    scores.append((a, b))
+            for v in vs:
+                atts.append(similarity(x,
+                                       v,
+                                       "rbf",
+                                       pooling=np.max,
+                                       gamma=gamma))
+            atts = np.stack(atts, 1)
+            score = softmax(atts, 1)
+            pred = np.asarray([ks[x] for x in np.argmax(score, 1)])
+
+            dist = distance(score)
+            mask = dist < dist.mean()
+            pred[mask] = "np"
+            preds.append(rewrite_labels(pred))
+
+        s = eval_sequence(preds, gold_bio, exact=False)
+        a = precision_recall_dict(*s, average="micro")
+        b = precision_recall_dict(*s, average="macro")
+        scores.append((a, b))
