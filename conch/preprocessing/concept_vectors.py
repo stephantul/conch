@@ -4,7 +4,6 @@ import json
 
 from tqdm import tqdm
 from reach import Reach
-from itertools import chain
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 

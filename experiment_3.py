@@ -9,11 +9,8 @@ import json
 
 from itertools import chain
 from conch.evaluation.extrinsic import eval_extrinsic
-from conch.preprocessing.baseline import baseline
-from conch.preprocessing.concept_vectors import create_concepts
 from reach import Reach
 from conch.conch import compose, reciprocal
-from conch.evaluation.utils import to_conll
 
 
 if __name__ == "__main__":
