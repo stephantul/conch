@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     # Set this flag to true to replicate the perfect chunking setting
     # in experiment 3.
-    perfect = False
+    perfect = True
 
     gold = json.load(open("data/test_gold.json"))
     gold = list(zip(*sorted(gold.items())))[1]
@@ -34,9 +34,11 @@ if __name__ == "__main__":
     txt, gold_bio = zip(*gold)
     _, data_bio = zip(*data)
 
-    embeddings = Reach.load("", unk_word="UNK")
+    embeddings = Reach.load("../../corpora/mimiciii-min5-neg3-w5-100.vec",
+                            unk_word="<UNK>")
+
     concept_reach = Reach.load_fast_format("data/concept_vectors")
-    concept_labels = json.load(open("data/concept_names2label.json"))
+    concept_labels = json.load(open("data/names2label.json"))
 
     gold_bio = list(chain.from_iterable(gold_bio))
 
@@ -54,40 +56,3 @@ if __name__ == "__main__":
                                     concept_reach,
                                     concept_labels,
                                     250)
-
-    r_phrases = compose(data,
-                        f1=np.mean,
-                        f2=np.mean,
-                        window=10,
-                        embeddings=embeddings,
-                        context_function=reciprocal)
-
-    pred_bio_full = eval_extrinsic(list(chain.from_iterable(data_bio)),
-                                   r_phrases,
-                                   concept_reach,
-                                   concept_labels,
-                                   250)
-
-    txt = list(chain.from_iterable(txt))
-    baseline_embeddings = baseline(txt, 10000)
-    concept_baseline, concept_labels = create_concepts(baseline_embeddings,
-                                                       include_np=True)
-
-    r_phrases = compose(data,
-                        f1=np.mean,
-                        f2=np.mean,
-                        window=0,
-                        embeddings=baseline_embeddings,
-                        context_function=reciprocal)
-
-    pred_bio_baseline = eval_extrinsic(list(chain.from_iterable(data_bio)),
-                                       r_phrases,
-                                       concept_baseline,
-                                       concept_labels,
-                                       250)
-
-    json.dump(results_bio, open("results/knn_test_extrinsic.json", 'w'))
-
-    to_conll(pred_bio_focus, gold_bio, "results/test_focus_model.conll")
-    to_conll(pred_bio_full, gold_bio, "results/test_full_model.conll")
-    to_conll(pred_bio_baseline, gold_bio, "results/test_baseline.conll")
